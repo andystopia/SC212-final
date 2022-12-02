@@ -1,0 +1,122 @@
+---
+title: "graphs"
+author: "Andy Day"
+date: "2022-12-02"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+```{r}
+data <- read.csv("prelim-data.csv")
+```
+
+```{r}
+data |>
+  pivot_longer(
+    c("TobaccoUseMale", "TobaccoUseFemale"),
+    names_to = "TobaccoUseGender",
+    values_to="TobaccoUse") |>
+  select(TobaccoUseGender, TobaccoUse) |>
+  mutate(across(TobaccoUseGender, str_replace, "TobaccoUse", "")) -> gendered_tobacco
+```
+
+```{r}
+ggplot(gendered_tobacco, aes(y=TobaccoUse, x=TobaccoUseGender)) + geom_boxplot() + xlab("Gender") + ylab("% Tobacco Consumers") + ggtitle("Percent Tobacco Consumers by Gender")
+```
+```{r}
+ggsave("gendered_tobacco.png", dpi = 'retina', height=5)
+```
+```{r}
+ggplot(data, aes(x=PropTobaccoExportsQuartile, fill=factor(TobaccoUseQuartile))) + geom_bar(position="dodge") + labs(fill="TobaccoUseQuartile") + ggtitle("Country Tobacco ")
+```
+```{r}
+ggsave("exports-tobacco.png", dpi = 'retina', height=5)
+```
+```{r}
+ggplot(data, aes(x=TobaccoUseAll, y=PropTobaccoExports)) + geom_point() +
+  xlab("% Of Population Who Consumes Tobacco") + 
+  ylab("Proportion of Country Exports which are Tobacco") + 
+  ggtitle("Country Exports vs Tobacco Usage")
+```
+```{r}
+ggsave("exports-use-all.png", dpi = 'retina', height=5)
+```
+```{r}
+data |> summarise(quartiles = quantile(TobaccoUseAll))
+```
+
+```{r}
+summary(aov(TobaccoUseAll ~ PropTobaccoExportsQuartile,data=data))
+```
+
+
+```{r}
+data |> select(TobaccoUseAll, PropTobaccoExportsQuartile) |>
+  mutate(TobaccoUseQuartile=case_when(
+           TobaccoUseAll <= 12.175 ~ " 3.300% - 12.175%",
+           TobaccoUseAll <= 20.350 ~ "12.175% - 20.350%",
+           TobaccoUseAll <= 25.325 ~ "20.350% - 25.325%",
+           TobaccoUseAll <= 43.800 ~ "25.325% - 43.800%",
+           TRUE ~ "other",
+         )) |> 
+  mutate(PropTobaccoExportsQuartile = case_when(
+    PropTobaccoExportsQuartile == 1 ~ "0.000% - 0.000%",
+    PropTobaccoExportsQuartile == 2 ~ "0.000% - 0.001%",
+    PropTobaccoExportsQuartile == 3 ~ "0.001% - 0.042%",
+    PropTobaccoExportsQuartile == 4 ~ "0.002% - 0.048%",
+    TRUE ~ "NaN",
+  )) |> filter(PropTobaccoExportsQuartile != "NaN")-> better_use_export
+```
+
+```{r}
+ggplot(better_use_export, aes(x=PropTobaccoExportsQuartile, fill=factor(TobaccoUseQuartile))) + geom_bar(position="dodge") + labs(fill="Population Tobacco Usage", x="Tobacco Export Quartile", y="Number Of Countries", title="Country Export Quartile vs Usage")
+```
+
+```{r}
+ggsave("exports-tobacco.png", dpi = 'retina', height=5)
+```
+
+```{r}
+to_quartile_strings <- function(input, na.rm=FALSE, rounding=NA, number_suffix="", map_missing_to=NULL) { 
+  quartile <- quantile(input,na.rm=na.rm)
+  
+  print(quartile[[1]])
+  if (!is.na(rounding)) { quartile <- round(quartile, rounding)}
+  
+  case_when(
+    input < quartile[[2]] ~ paste(quartile[[1]], number_suffix," - ", quartile[[2]], number_suffix,  sep=""),
+    input < quartile[[3]] ~ paste(quartile[[2]], number_suffix," - ", quartile[[3]], number_suffix,  sep=""),
+    input < quartile[[4]] ~ paste(quartile[[3]], number_suffix," - ", quartile[[4]], number_suffix,  sep=""),
+    input < quartile[[5]] ~ paste(quartile[[4]], number_suffix," - ", quartile[[5]], number_suffix,  sep=""),
+    TRUE ~ map_missing_to,
+  )
+}
+```
+```{r}
+to_quartile_strings(data$TobaccoExports, na.rm=TRUE, map_missing_to = "missing")
+```
+```{r}
+quartile_readable <- \(x) to_quartile_strings(x, na.rm=TRUE, rounding=3, number_suffix = "%", map_missing_to="missing")
+
+data |> 
+  mutate(
+    LungCancerRateAllQuartileReadable= quartile_readable(LungCancerRateAll),
+    PropTobaccoExportsQuartileReadable= quartile_readable(PropTobaccoExports),
+    PropTobaccoImportsQuartileReadable=quartile_readable(PropTobaccoImports),
+    TobaccoUseQuartileReadable=quartile_readable(TobaccoUseAll),
+  ) |> write.csv("prelim-data-readable-quartiles.csv", row.names = FALSE)
+```
+
+
+
+```{r}
+summary(lm(PropTobaccoExports ~ TobaccoUseAll, data=data))
+```
+
+
+
+
+
+
